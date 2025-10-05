@@ -1,0 +1,4 @@
+- name: Build Windows ARM64
+  run: |
+    pnpm install
+    pnpm run electron:build -- --win --arm64
