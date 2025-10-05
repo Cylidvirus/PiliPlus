@@ -1,4 +1,70 @@
-- name: Build Windows ARM64
-  run: |
-    pnpm install
-    pnpm run electron:build -- --win --arm64
+name: Build for Windows ARM64
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+    paths-ignore:
+      - "**.md"
+  workflow_dispatch:
+    inputs:
+      branch:
+        required: false
+        default: "main"
+
+jobs:
+  build-windows-arm64:
+    name: Release Windows ARM64
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.inputs.branch }}
+          fetch-depth: 0
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version-file: pubspec.yaml
+
+      - name: Add fastforge and Inno Setup
+        run: |
+          dart pub global activate fastforge
+          choco install innosetup
+
+      - name: Add Chinese language file for Inno Setup
+        run: |
+          Copy-Item "windows/packaging/exe/ChineseSimplified.isl" "C:\Program Files (x86)\Inno Setup 6\Languages\ChineseSimplified.isl"
+        shell: powershell
+
+      - name: Build Windows ARM64
+        run: |
+          dart lib/scripts/build.dart
+          flutter build windows --release --target-platform windows-arm64
+          fastforge package --platform windows --targets exe
+        shell: powershell
+
+      - name: Prepare Upload
+        run: |
+          mkdir -p Release/PiliPlus-Win-ARM64
+          mkdir -p PiliPlus-Win-ARM64-Setup
+          mv build/windows/arm64/runner/Release/* Release/PiliPlus-Win-ARM64/
+          mv dist/**/*.exe PiliPlus-Win-ARM64-Setup/
+        shell: bash
+
+      - name: Upload Windows ARM64 file release
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-arm64-file-release
+          path: Release
+
+      - name: Upload Windows ARM64 setup release
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-arm64-setup-release
+          path: PiliPlus-Win-ARM64-Setup
